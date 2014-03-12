@@ -34,6 +34,7 @@ PRODUCT_PACKAGES := \
     Keyguard \
     LatinIME \
     Launcher2 \
+    Launcher3 \
     Music \
     MusicFX \
     OneTimeInitializer \
@@ -43,11 +44,11 @@ PRODUCT_PACKAGES := \
     Settings \
     SystemUI \
     TeleService \
-    Terminal \
     CalendarProvider \
     bluetooth-health \
     hostapd \
-    wpa_supplicant.conf
+    wpa_supplicant.conf \
+    WallpaperCropper
 
 PRODUCT_PACKAGES += \
     audio \
@@ -86,6 +87,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
 $(call inherit-product-if-exists, frameworks/base/data/fonts/fonts.mk)
 $(call inherit-product-if-exists, external/noto-fonts/fonts.mk)
 $(call inherit-product-if-exists, external/naver-fonts/fonts.mk)
+$(call inherit-product-if-exists, external/sil-fonts/fonts.mk)
 $(call inherit-product-if-exists, frameworks/base/data/keyboards/keyboards.mk)
 $(call inherit-product-if-exists, frameworks/webview/chromium/chromium.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core.mk)

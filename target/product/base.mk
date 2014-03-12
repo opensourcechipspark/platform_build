@@ -23,6 +23,7 @@ PRODUCT_PACKAGES += \
     android.test.runner \
     app_process \
     applypatch \
+    blkid \
     bmgr \
     bugreport \
     content \
@@ -42,13 +43,14 @@ PRODUCT_PACKAGES += \
     libbundlewrapper \
     libcamera_client \
     libcameraservice \
-    libchromium_net \
     libdl \
+    libeffectproxy \
     libeffects \
     libinput \
     libiprouteutil \
     libjni_latinime \
     libjnigraphics \
+    libldnhncr \
     libmedia \
     libmedia_jni \
     libmediaplayerservice \
@@ -72,6 +74,7 @@ PRODUCT_PACKAGES += \
     libstagefright_foundation \
     libstagefright_omx \
     libstagefright_yuv \
+    host-libprotobuf-java-2.3.0-nano \
     libusbhost \
     libutils \
     libvisualizer \
@@ -102,7 +105,9 @@ PRODUCT_PACKAGES += \
     vdc \
     vold \
     webview \
-    wm
+    wm \
+    genext2fs \
+    mkyaffs2image
 
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/embedded.mk)

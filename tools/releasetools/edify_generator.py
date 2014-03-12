@@ -184,6 +184,11 @@ class EdifyGenerator(object):
     cmd = "delete(" + ",\0".join(['"%s"' % (i,) for i in file_list]) + ");"
     self.script.append(self._WordWrap(cmd))
 
+  def RenameFile(self, srcfile, tgtfile):
+    """Moves a file from one location to another."""
+    if self.info.get("update_rename_support", False):
+      self.script.append('rename("%s", "%s");' % (srcfile, tgtfile))
+
   def ApplyPatch(self, srcfile, tgtfile, tgtsize, tgtsha1, *patchpairs):
     """Apply binary patches (in *patchpairs) to the given srcfile to
     produce tgtfile (which may be "-" to indicate overwriting the
@@ -217,14 +222,57 @@ class EdifyGenerator(object):
       else:
         raise ValueError("don't know how to write \"%s\" partitions" % (p.fs_type,))
 
-  def SetPermissions(self, fn, uid, gid, mode):
-    """Set file ownership and permissions."""
-    self.script.append('set_perm(%d, %d, 0%o, "%s");' % (uid, gid, mode, fn))
+  def WriteRawParameterImage(self, mount_point, fn):
+    """Write the given package file into the partition for the given
+    mount point."""
 
-  def SetPermissionsRecursive(self, fn, uid, gid, dmode, fmode):
+    fstab = self.info["fstab"]
+    if fstab:
+      p = fstab[mount_point]
+      partition_type = common.PARTITION_TYPES[p.fs_type]
+      args = {'device': p.device, 'fn': fn}
+      if partition_type == "MTD":
+        self.script.append(
+            'write_raw_parameter_image(package_extract_file("%(fn)s"), "%(device)s");'
+            % args)
+      elif partition_type == "EMMC":
+        self.script.append(
+            'write_raw_parameter_image(package_extract_file("%(fn)s"), "%(device)s");'
+            % args)
+      else:
+        raise ValueError("don't know how to write \"%s\" partitions" % (p.fs_type,))
+
+  def ClearMiscCommand(self):
+    """clear misc command"""
+    self.script.append('clear_misc_command();')
+
+  def SetPermissions(self, fn, uid, gid, mode, selabel, capabilities):
+    """Set file ownership and permissions."""
+    if not self.info.get("use_set_metadata", False):
+      self.script.append('set_perm(%d, %d, 0%o, "%s");' % (uid, gid, mode, fn))
+    else:
+      if capabilities is None: capabilities = "0x0"
+      cmd = 'set_metadata("%s", "uid", %d, "gid", %d, "mode", 0%o, ' \
+          '"capabilities", %s' % (fn, uid, gid, mode, capabilities)
+      if selabel is not None:
+        cmd += ', "selabel", "%s"' % ( selabel )
+      cmd += ');'
+      self.script.append(cmd)
+
+  def SetPermissionsRecursive(self, fn, uid, gid, dmode, fmode, selabel, capabilities):
     """Recursively set path ownership and permissions."""
-    self.script.append('set_perm_recursive(%d, %d, 0%o, 0%o, "%s");'
-                       % (uid, gid, dmode, fmode, fn))
+    if not self.info.get("use_set_metadata", False):
+      self.script.append('set_perm_recursive(%d, %d, 0%o, 0%o, "%s");'
+                         % (uid, gid, dmode, fmode, fn))
+    else:
+      if capabilities is None: capabilities = "0x0"
+      cmd = 'set_metadata_recursive("%s", "uid", %d, "gid", %d, ' \
+          '"dmode", 0%o, "fmode", 0%o, "capabilities", %s' \
+          % (fn, uid, gid, dmode, fmode, capabilities)
+      if selabel is not None:
+        cmd += ', "selabel", "%s"' % ( selabel )
+      cmd += ');'
+      self.script.append(cmd)
 
   def MakeSymlinks(self, symlink_list):
     """Create symlinks, given a list of (dest, link) pairs."""

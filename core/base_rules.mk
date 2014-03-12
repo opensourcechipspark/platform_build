@@ -141,15 +141,16 @@ intermediates.COMMON := $(call local-intermediates-dir,COMMON)
 ###########################################################
 # Pick a name for the intermediate and final targets
 ###########################################################
-LOCAL_MODULE_STEM := $(strip $(LOCAL_MODULE_STEM))
-ifeq ($(LOCAL_MODULE_STEM),)
+ifndef LOCAL_MODULE_STEM
   LOCAL_MODULE_STEM := $(LOCAL_MODULE)
 endif
-LOCAL_INSTALLED_MODULE_STEM := $(LOCAL_MODULE_STEM)$(LOCAL_MODULE_SUFFIX)
 
-LOCAL_BUILT_MODULE_STEM := $(strip $(LOCAL_BUILT_MODULE_STEM))
-ifeq ($(LOCAL_BUILT_MODULE_STEM),)
-  LOCAL_BUILT_MODULE_STEM := $(LOCAL_INSTALLED_MODULE_STEM)
+ifndef LOCAL_BUILT_MODULE_STEM
+  LOCAL_BUILT_MODULE_STEM := $(LOCAL_MODULE_STEM)$(LOCAL_MODULE_SUFFIX)
+endif
+
+ifndef LOCAL_INSTALLED_MODULE_STEM
+  LOCAL_INSTALLED_MODULE_STEM := $(LOCAL_MODULE_STEM)$(LOCAL_MODULE_SUFFIX)
 endif
 
 # OVERRIDE_BUILT_MODULE_PATH is only allowed to be used by the
@@ -185,9 +186,6 @@ ifneq ($(strip $(aidl_sources)),)
 aidl_java_sources := $(patsubst %.aidl,%.java,$(addprefix $(intermediates.COMMON)/src/, $(aidl_sources)))
 aidl_sources := $(addprefix $(TOP_DIR)$(LOCAL_PATH)/, $(aidl_sources))
 
-ifeq (,$(TARGET_BUILD_APPS))
-LOCAL_AIDL_INCLUDES += $(FRAMEWORKS_BASE_JAVA_SRC_DIRS)
-endif
 aidl_preprocess_import :=
 LOCAL_SDK_VERSION:=$(strip $(LOCAL_SDK_VERSION))
 ifdef LOCAL_SDK_VERSION
@@ -197,6 +195,9 @@ ifeq ($(LOCAL_SDK_VERSION)$(TARGET_BUILD_APPS),current)
 else
   aidl_preprocess_import := $(HISTORICAL_SDK_VERSIONS_ROOT)/$(LOCAL_SDK_VERSION)/framework.aidl
 endif # !current
+else
+# build against the platform.
+LOCAL_AIDL_INCLUDES += $(FRAMEWORKS_BASE_JAVA_SRC_DIRS)
 endif # LOCAL_SDK_VERSION
 $(aidl_java_sources): PRIVATE_AIDL_FLAGS := -b $(addprefix -p,$(aidl_preprocess_import)) -I$(LOCAL_PATH) -I$(LOCAL_PATH)/src $(addprefix -I,$(LOCAL_AIDL_INCLUDES))
 

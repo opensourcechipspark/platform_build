@@ -90,6 +90,7 @@ FRAMEWORKS_BASE_SUBDIRS := \
 	    telephony \
 	    wifi \
 	    keystore \
+		ethernet \
 	 )
 
 #
@@ -109,6 +110,7 @@ FRAMEWORKS_SUPPORT_SUBDIRS := \
         v7/gridlayout \
         v7/appcompat \
         v7/mediarouter \
+        v8/renderscript \
         v13
 
 #

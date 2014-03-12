@@ -315,6 +315,12 @@ def BuildBootableImage(sourcedir, fs_config_file, info_dict=None):
   p.communicate()
   assert p.returncode == 0, "mkbootimg of %s image failed" % (
       os.path.basename(sourcedir),)
+  
+  sign_cmd = ["drmsigntool", img.name, "build/target/product/security/privateKey.bin"]
+  p3 = Run(sign_cmd)
+  p3.communicate()
+  assert p3.returncode == 0, "mkbootimg of %s image failed" % (
+      os.path.basename(sourcedir),)
 
   img.seek(os.SEEK_SET, 0)
   data = img.read()
@@ -782,6 +788,11 @@ class DeviceSpecificParams(object):
     used to install the image for the device's baseband processor."""
     return self._DoCall("FullOTA_InstallEnd")
 
+  def Install_Parameter(self):
+    """Called at the start of OTA installation; typically this is
+    used to install the parameter for the device's baseband processor"""
+    return self._DoCall("Install_Parameter")
+
   def IncrementalOTA_Assertions(self):
     """Called after emitting the block of assertions at the top of an
     incremental OTA package.  Implementations can add whatever
@@ -954,3 +965,18 @@ def GetTypeAndDevice(mount_point, info):
     return PARTITION_TYPES[fstab[mount_point].fs_type], fstab[mount_point].device
   else:
     return None
+
+
+def ParseCertificate(data):
+  """Parse a PEM-format certificate."""
+  cert = []
+  save = False
+  for line in data.split("\n"):
+    if "--END CERTIFICATE--" in line:
+      break
+    if save:
+      cert.append(line)
+    if "--BEGIN CERTIFICATE--" in line:
+      save = True
+  cert = "".join(cert).decode('base64')
+  return cert

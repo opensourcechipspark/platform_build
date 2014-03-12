@@ -28,6 +28,7 @@ prebuilt_static_java_libraries := $(LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES)
 prebuilt_is_host := $(LOCAL_IS_HOST_MODULE)
 prebuilt_module_tags := $(LOCAL_MODULE_TAGS)
 prebuilt_strip_module := $(LOCAL_STRIP_MODULE)
+prebuilt_module_path := $(LOCAL_MODULE_PATH)
 
 
 ifndef multi_prebuilt_once
@@ -74,6 +75,7 @@ $(foreach t,$(1), \
   $(eval LOCAL_MODULE_SUFFIX := $(suffix $(LOCAL_SRC_FILES))) \
   $(if $(filter user,$(TARGET_BUILD_VARIANT)), \
     $(eval LOCAL_STRIP_MODULE := $(8))) \
+    $(eval LOCAL_MODULE_PATH := $(9)) \
   $(eval include $(BUILD_PREBUILT)) \
  )
 endef
@@ -97,7 +99,8 @@ $(call auto-prebuilt-boilerplate, \
     $($(if $(prebuilt_is_host),HOST,TARGET)_OUT_INTERMEDIATE_LIBRARIES), \
     , \
     , \
-    $(prebuilt_strip_module))
+    $(prebuilt_strip_module), \
+    $(prebuilt_module_path))
 
 $(call auto-prebuilt-boilerplate, \
     $(prebuilt_executables), \
@@ -130,3 +133,4 @@ prebuilt_java_libraries :=
 prebuilt_static_java_libraries :=
 prebuilt_is_host :=
 prebuilt_module_tags :=
+prebuilt_module_path :=
