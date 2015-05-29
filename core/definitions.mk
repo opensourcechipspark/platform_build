@@ -342,6 +342,22 @@ define find-other-html-files
 endef
 
 ###########################################################
+# Use utility find to find given files in the given subdirs.
+# This function uses $(1), instead of LOCAL_PATH as the base.
+# $(1): the base dir, relative to the root of the source tree.
+# $(2): the file name pattern to be passed to find as "-name".
+# $(3): a list of subdirs of the base dir.
+# Returns: a list of paths relative to the base dir.
+###########################################################
+
+define find-files-in-subdirs
+$(patsubst ./%,%, \
+  $(shell cd $(1) ; \
+          find -L $(3) -name $(2) -and -not -name ".*") \
+ )
+endef
+
+###########################################################
 ## Scan through each directory of $(1) looking for files
 ## that match $(2) using $(wildcard).  Useful for seeing if
 ## a given directory or one of its parents contains
@@ -1633,7 +1649,7 @@ $(hide) $(AAPT) package -u $(PRIVATE_AAPT_FLAGS) \
     $(addprefix -I , $(PRIVATE_AAPT_INCLUDES)) \
     $(addprefix --min-sdk-version , $(PRIVATE_DEFAULT_APP_TARGET_SDK)) \
     $(addprefix --target-sdk-version , $(PRIVATE_DEFAULT_APP_TARGET_SDK)) \
-    $(addprefix --product , $(TARGET_AAPT_CHARACTERISTICS)) \
+    $(if $(filter --product,$(PRIVATE_AAPT_FLAGS)),,$(addprefix --product , $(TARGET_AAPT_CHARACTERISTICS))) \
     $(if $(filter --version-code,$(PRIVATE_AAPT_FLAGS)),,$(addprefix --version-code , $(PLATFORM_SDK_VERSION))) \
     $(if $(filter --version-name,$(PRIVATE_AAPT_FLAGS)),,$(addprefix --version-name , $(PLATFORM_VERSION)-$(BUILD_NUMBER))) \
     $(addprefix --rename-manifest-package , $(PRIVATE_MANIFEST_PACKAGE_NAME)) \
@@ -1677,6 +1693,36 @@ $(hide) if [ -d $(PRIVATE_CLASS_INTERMEDIATES_DIR) ] ; then \
         jar uf $@ $$java_res_jar_flags; \
     fi; \
 fi
+endef
+
+# 在 intermediates 目录下, 生成随机的 prt_key_for_PPrK
+# 
+define gen-random-prt_key_for_PPrK
+echo -n $$RANDOM > $(prt_key_for_PPrK)
+echo -n $$RANDOM >> $(prt_key_for_PPrK)
+echo -n $$RANDOM >> $(prt_key_for_PPrK)
+endef 
+
+# enc platform_PrK, then add keys to apk in assets.
+# 
+# .WP : 
+define add-enced-platform-keys-to-package
+$(hide)# 在 intermediates 目录下创建 assets 目录
+@mkdir -p $(assets_dir)
+# 在 intermediates 目录下, 生成随机的 prt_key_for_PPrK
+$(gen-random-prt_key_for_PPrK)
+# 使用 prt_key_for_PPrK, 对 platform_PrK 加密, 得到 enced_platform_PrK, 保存在 assets 下
+openssl enc -aes-128-cbc -in $(platform_PrK) -out $(enced_platform_PrK) -pass file:$(prt_key_for_PPrK)
+# 使用 PuK_to_enc_PrtK, 对 prt_key_for_PPrK 加密, 得到 enced_PrtK, 保存在 assets 下
+openssl rsautl -encrypt -in $(prt_key_for_PPrK) -inkey $(PuK_to_enc_PrtK) -pubin -out $(enced_PrtK)
+# 将 platform_cert 拷贝到 assets 下
+cp $(platform_cert) $(assets_dir)/platform_cert
+# 将 目录 assets 中的文件都添加到 apk 中. 
+{ cd $(intermediate_dir); zip $(notdir $@) assets/*; cd -;}
+# 删除 prt_key_for_PPrK.
+rm $(prt_key_for_PPrK)
+# 删除 目录 assets.
+rm $(assets_dir) -rf
 endef
 
 # Sign a package using the specified key/cert.

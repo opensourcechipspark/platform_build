@@ -142,6 +142,10 @@ LOCAL_POST_INSTALL_CMD:=
 LOCAL_DIST_BUNDLED_BINARIES:=
 LOCAL_HAL_STATIC_LIBRARIES:=
 
+LOCAL_ADD_ENCED_PLATFORM_KEYS_TO_APK:=
+LOCAL_PUBLIC_KEY_TO_ENC_RANDOM_PROTECTION_KEY:=
+
+
 # Trim MAKEFILE_LIST so that $(call my-dir) doesn't need to
 # iterate over thousands of entries every time.
 # Leave the current makefile to make sure we don't break anything

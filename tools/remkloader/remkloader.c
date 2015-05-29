@@ -63,12 +63,13 @@ typedef struct _RK28BOOT_HEAD{
 
 	unsigned int        	uiFlashBootOffset;
 	unsigned int		uiFlashBootLen;
-	
+	unsigned char       ucRc4Flag;
+
 	unsigned int		MergerVersion;		// 生成Boot文件所用Merger工具的版本号(高16字节为主版本号、低16字节为副版本号)
 }RK28BOOT_HEAD, *PRK28BOOT_HEAD;
 
 
-#define  BOOT_RESERVED_SIZE 59
+#define  BOOT_RESERVED_SIZE 57
 
 typedef enum
 {
@@ -106,6 +107,8 @@ typedef struct
 	unsigned char ucLoaderEntryCount;
 	unsigned int dwLoaderEntryOffset;
 	unsigned char ucLoaderEntrySize;
+	unsigned char ucSignFlag;
+	unsigned char ucRc4Flag;
 	unsigned char reserved[BOOT_RESERVED_SIZE];
 }__attribute__ ((packed)) STRUCT_RKBOOT_HEAD,*PSTRUCT_RKBOOT_HEAD;
 
@@ -166,9 +169,10 @@ int make_loader_data(const char* old_loader, char* new_loader, int *new_loader_s
     new_hdr->uiFlashDataLen = pFlashDataEntry->dwDataSize;
     new_hdr->uiFlashBootOffset = new_hdr->uiFlashDataOffset+new_hdr->uiFlashDataLen;
     new_hdr->uiFlashBootLen = pFlashBootEntry->dwDataSize;
-    memcpy(new_loader+new_hdr->uiFlashDataOffset, old_loader+pFlashDataEntry->dwDataOffset, pFlashDataEntry->dwDataSize);
-    memcpy(new_loader+new_hdr->uiFlashBootOffset, old_loader+pFlashBootEntry->dwDataOffset, pFlashBootEntry->dwDataSize);
-    *new_loader_size = new_hdr->uiFlashBootOffset+new_hdr->uiFlashBootLen;
+	new_hdr->ucRc4Flag = boot_hdr->ucRc4Flag;
+	memcpy(new_loader+new_hdr->uiFlashDataOffset, old_loader+pFlashDataEntry->dwDataOffset, pFlashDataEntry->dwDataSize);
+	memcpy(new_loader+new_hdr->uiFlashBootOffset, old_loader+pFlashBootEntry->dwDataOffset, pFlashBootEntry->dwDataSize);
+	*new_loader_size = new_hdr->uiFlashBootOffset+new_hdr->uiFlashBootLen;
 //    dump_data(new_loader, HEADINFO_SIZE);
     
     return 0;

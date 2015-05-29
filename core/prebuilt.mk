@@ -150,11 +150,36 @@ ifeq ($(LOCAL_CERTIFICATE),PRESIGNED)
 $(built_module) : $(my_prebuilt_src_file) | $(ZIPALIGN)
 	$(transform-prebuilt-to-target-with-zipalign)
 else
+ifeq ($(LOCAL_ADD_ENCED_PLATFORM_KEYS_TO_APK),true)
+$(info "to add enced_platform_keys to apk!")
+ifdef LOCAL_PUBLIC_KEY_TO_ENC_RANDOM_PROTECTION_KEY 
+PuK_to_enc_PrtK := $(LOCAL_PUBLIC_KEY_TO_ENC_RANDOM_PROTECTION_KEY)
+$(info "PuK_to_enc_PrtK : " $(PuK_to_enc_PrtK) )
+$(info "built_module : " $(built_module) )
+intermediate_dir := $(dir $(built_module) )
+assets_dir := $(intermediate_dir)/assets
+prt_key_for_PPrK := $(intermediate_dir)/prt_key_for_PPrK 
+platform_PrK := build/target/product/security/platform.pk8
+platform_cert := build/target/product/security/platform.x509.pem
+enced_platform_PrK := $(assets_dir)/enced_platform_PrK 
+enced_PrtK := $(assets_dir)/enced_PrtK 
+# Add enced_platform_keys, sign and align non-presigned .apks.
+# .WP : 
+$(built_module) : $(my_prebuilt_src_file) | $(ACP) $(ZIPALIGN) $(SIGNAPK_JAR)
+	$(transform-prebuilt-to-target)
+	$(add-enced-platform-keys-to-package)
+	$(sign-package)
+	$(align-package)
+else
+$(error "no LOCAL_PUBLIC_KEY_TO_ENC_RANDOM_PROTECTION_KEY specified!")
+endif
+else
 # Sign and align non-presigned .apks.
 $(built_module) : $(my_prebuilt_src_file) | $(ACP) $(ZIPALIGN) $(SIGNAPK_JAR)
 	$(transform-prebuilt-to-target)
 	$(sign-package)
 	$(align-package)
+endif
 endif
 else
 ifneq ($(LOCAL_PREBUILT_STRIP_COMMENTS),)

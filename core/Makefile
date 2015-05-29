@@ -457,14 +457,14 @@ endif
 
 # -----------------------------------------------------------------
 # the rk loader bin
-INSTALLED_LOADER_MISC_TARGET := $(TARGET_DEVICE_DIR)/recovery/loader/misc_loadercmd.img
-INSTALLED_LOADER_TARGET := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/loader/RK*Loader*.bin))
+INSTALLED_LOADER_MISC_TARGET := $(TARGET_DEVICE_DIR)/loader/misc_loadercmd.img
+INSTALLED_LOADER_TARGET := $(strip $(wildcard $(TARGET_DEVICE_DIR)/loader/RK*Loader*.bin))
 INSTALLED_NEW_LOADER_TARGET := $(PRODUCT_OUT)/RKLoader_new.bin
-INSTALLED_UBOOT_TARGET := $(strip $(wildcard uboot/uboot.img))
-INSTALLED_CHARGE_TARGET := $(strip $(wildcard uboot/charge.img))
+INSTALLED_UBOOT_TARGET := $(strip $(wildcard u-boot/uboot.img))
+INSTALLED_CHARGE_TARGET := $(strip $(wildcard u-boot/charge.img))
 # -----------------------------------------------------------------
 # the parameter image 
-INSTALLED_PARAMETER_TARGET := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/parameter/parameter*))
+INSTALLED_PARAMETER_TARGET := $(strip $(wildcard $(TARGET_DEVICE_DIR)/parameter/parameter*))
 
 # -----------------------------------------------------------------
 # NOTICE files
@@ -572,10 +572,10 @@ $(kernel_notice_file): \
 # before the rules that use that variable to build the image.
 ALL_DEFAULT_INSTALLED_MODULES += $(TARGET_OUT_ETC)/security/otacerts.zip
 $(TARGET_OUT_ETC)/security/otacerts.zip: KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
-$(TARGET_OUT_ETC)/security/otacerts.zip: $(addsuffix .x509.pem,$(DEFAULT_KEY_CERT_PAIR))
+$(TARGET_OUT_ETC)/security/otacerts.zip: $(addsuffix .x509.pem,$(DEFAULT_KEY_CERT_PAIR)) $(RADICAL_UPDATE_CERT)
 	$(hide) rm -f $@
 	$(hide) mkdir -p $(dir $@)
-	$(hide) zip -qj $@ $<
+	$(hide) zip -qj $@ $^
 
 .PHONY: otacerts
 otacerts: $(TARGET_OUT_ETC)/security/otacerts.zip
@@ -641,8 +641,14 @@ INSTALLED_RECOVERYIMAGE_TARGET := $(PRODUCT_OUT)/recovery.img
 
 recovery_initrc := $(call include-path-for, recovery)/etc/init.rc
 recovery_initrc_private := $(TARGET_DEVICE_DIR)/recovery/etc/init.rc
+recovery_initrc_private := $(if $(wildcard $(recovery_initrc_private)), $(recovery_initrc_private),\
+    device/rockchip/rksdk/recovery/etc/init.rc)
 recovery_initrc_emmc_private := $(TARGET_DEVICE_DIR)/recovery/etc/init.bootmode.emmc.rc
+recovery_initrc_emmc_private := $(if $(wildcard $(recovery_initrc_emmc_private)), $(recovery_initrc_emmc_private),\
+    device/rockchip/rksdk/recovery/etc/init.bootmode.emmc.rc)
 recovery_initrc_mtd_private := $(TARGET_DEVICE_DIR)/recovery/etc/init.bootmode.unknown.rc
+recovery_initrc_mtd_private := $(if $(wildcard $(recovery_initrc_mtd_private)), $(recovery_initrc_mtd_private),\
+    device/rockchip/rksdk/recovery/etc/init.bootmode.unknown.rc)
 recovery_kernel := $(INSTALLED_KERNEL_TARGET) # same as a non-recovery system
 recovery_ramdisk := $(PRODUCT_OUT)/ramdisk-recovery.img
 recovery_build_prop := $(INSTALLED_BUILD_PROP_TARGET)
@@ -660,23 +666,28 @@ recovery_font := $(call include-path-for, recovery)/fonts/12x22.png
 endif
 
 recovery_resources_private := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/res))
+recovery_resources_private := $(if $(wildcard $(recovery_resources_private)), $(recovery_resources_private),\
+    device/rockchip/rksdk/recovery/res)
 recovery_resource_deps := $(shell find $(recovery_resources_common) \
   $(recovery_resources_private) -type f)
 ifdef TARGET_RECOVERY_FSTAB
 recovery_fstab := $(TARGET_RECOVERY_FSTAB)
 else
-recovery_fstab_mtd := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/etc/recovery.fstab))
-recovery_fstab_emmc := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/etc/recovery.emmc.fstab))
+recovery_fstab_mtd := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery.fstab))
+recovery_fstab_mtd := $(if $(wildcard $(recovery_fstab_mtd)), $(recovery_fstab_mtd),\
+    device/rockchip/rksdk/recovery.fstab)
+recovery_fstab_emmc := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery.emmc.fstab))
+recovery_fstab_emmc := $(if $(wildcard $(recovery_fstab_emmc)), $(recovery_fstab_emmc),\
+    device/rockchip/rksdk/recovery.emmc.fstab)
 endif
 # Named '.dat' so we don't attempt to use imgdiff for patching it.
 RECOVERY_RESOURCE_ZIP := $(TARGET_OUT)/etc/recovery-resource.dat
 
 ifeq ($(TARGET_ROCKCHIP_PCBATEST),true)
 pcba_core := $(call intermediates-dir-for,EXECUTABLES,pcba_core)/pcba_core
-$(warning $(TARGET_BOARD_PLATFORM))
-recovery_contents := $(TOPDIR)device/rockchip/rkpx2/recovery/recovery_contents.sh
+recovery_contents := $(TOPDIR)device/rockchip/rksdk/recovery_contents.sh
 else
-recovery_contents := $(TOPDIR)device/rockchip/rkpx2/recovery/recovery_contents.sh
+recovery_contents := $(TOPDIR)device/rockchip/rksdk/recovery_contents.sh
 endif
 
 ifeq ($(recovery_resources_private),)
@@ -721,11 +732,11 @@ RECOVERY_INSTALL_OTA_KEYS := \
 DUMPKEY_JAR := $(HOST_OUT_JAVA_LIBRARIES)/dumpkey.jar
 $(RECOVERY_INSTALL_OTA_KEYS): PRIVATE_OTA_PUBLIC_KEYS := $(OTA_PUBLIC_KEYS)
 $(RECOVERY_INSTALL_OTA_KEYS): extra_keys := $(patsubst %,%.x509.pem,$(PRODUCT_EXTRA_RECOVERY_KEYS))
-$(RECOVERY_INSTALL_OTA_KEYS): $(OTA_PUBLIC_KEYS) $(DUMPKEY_JAR) $(extra_keys) $(RK_PUBLIC_KEY)
+$(RECOVERY_INSTALL_OTA_KEYS): $(OTA_PUBLIC_KEYS) $(DUMPKEY_JAR) $(extra_keys) $(RK_PUBLIC_KEY) $(RADICAL_UPDATE_CERT)
 	@echo "DumpPublicKey: $@ <= $(PRIVATE_OTA_PUBLIC_KEYS) $(extra_keys)"
 	@rm -rf $@
 	@mkdir -p $(dir $@)
-	java -jar $(DUMPKEY_JAR) $(PRIVATE_OTA_PUBLIC_KEYS) $(extra_keys) > $@
+	java -jar $(DUMPKEY_JAR) $(PRIVATE_OTA_PUBLIC_KEYS) $(extra_keys) $(RADICAL_UPDATE_CERT) > $@
 
 $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 		$(INSTALLED_RAMDISK_TARGET) \
@@ -1280,6 +1291,12 @@ else
 	$(hide) cat $(INSTALLED_LOADER_MISC_TARGET) $(INSTALLED_NEW_LOADER_TARGET) > $(zip_root)/LOADER/RKLoader.img 
 endif
 
+ifdef TARGET_PREBUILT_RESOURCE
+	$(info package add resource.img to BOOT and RECOVERY)
+	$(hide) cp $(TARGET_PREBUILT_RESOURCE) $(zip_root)/BOOT/resource.img
+	$(hide) cp $(TARGET_PREBUILT_RESOURCE) $(zip_root)/RECOVERY/resource.img
+endif
+
 ifeq ($(INSTALLED_UBOOT_TARGET),)
 	$(info No uboot for uboot/uboot.img to otapackage)
 else
@@ -1319,6 +1336,7 @@ endif
 	@# build them.
 	$(hide) mkdir -p $(zip_root)/META
 	$(hide) $(ACP) $(APKCERTS_FILE) $(zip_root)/META/apkcerts.txt
+	$(hide) if test -e $(tool_extensions)/releasetools.py; then $(ACP) $(tool_extensions)/releasetools.py $(zip_root)/META/; fi
 	$(hide)	echo "$(PRODUCT_OTA_PUBLIC_KEYS)" > $(zip_root)/META/otakeys.txt
 	$(hide) echo "recovery_api_version=$(PRIVATE_RECOVERY_API_VERSION)" > $(zip_root)/META/misc_info.txt
 	$(hide) echo "fstab_version=$(PRIVATE_RECOVERY_FSTAB_VERSION)" >> $(zip_root)/META/misc_info.txt
@@ -1338,7 +1356,9 @@ ifdef PRODUCT_EXTRA_RECOVERY_KEYS
 endif
 	$(hide) echo "mkbootimg_args=$(BOARD_MKBOOTIMG_ARGS)" >> $(zip_root)/META/misc_info.txt
 	$(hide) echo "use_set_metadata=1" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "multistage_support=1" >> $(zip_root)/META/misc_info.txt
 	$(hide) echo "update_rename_support=1" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "multistage_support=1" >> $(zip_root)/META/misc_info.txt
 	$(call generate-userimage-prop-dictionary, $(zip_root)/META/misc_info.txt)
 	@# Zip everything up, preserving symlinks
 	$(hide) (cd $(zip_root) && zip -qry ../$(notdir $@) .)

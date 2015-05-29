@@ -1,0 +1,185 @@
+#!/usr/bin/env python
+# coding=gb2312
+
+"""
+从指定的包含 radical_update 内容的目录 (update_content_dir), 创建对应的 OTA radical_update_pkg.
+
+Usage:  mk_radical_update_pkg_from_dir [flags] update_content_dir output_ota_package
+  上面的 output_ota_package 就是 radical_update_pkg.
+
+  -k  (--package_key) <key>
+      指定用来对 package 签名的 key 文件的路径. 缺省使用 "build/target/product/security/testkey"
+
+  -t  (--target_target_files> <zip_file_path>
+      包含针对目标设备的完整的 target_files 的 zip 文件, 诸如 : out/target/product/rk3288/obj/PACKAGING/target_files_intermediates/rk3288-target_files-eng.cz.zip
+      output_ota_package 需要其中若干配置信息, 可以认为是输入之一.
+      必须指定.
+"""
+
+#*---------------------------------------------------------------------------*/
+
+import sys
+
+if sys.hexversion < 0x02040000:
+  print >> sys.stderr, "Python 2.4 or newer is required."
+  sys.exit(1)
+
+import copy
+import errno
+import os
+import re
+import subprocess
+import tempfile
+import time
+import zipfile
+import logging
+import inspect
+
+try:
+  from hashlib import sha1 as sha1
+except ImportError:
+  from sha import sha as sha1
+
+import common
+import edify_generator
+
+from custom_log import D
+from custom_log import I
+from custom_log import W
+from custom_log import E
+from custom_log import C
+from custom_log import D_CS
+
+#*---------------------------------------------------------------------------*/
+
+OPTIONS = common.OPTIONS
+# 参见 --package_key.
+OPTIONS.package_key = None
+# 设备端可执行文件 updater 在 host 本地的路径, 将作为输出 zip 中的 META-INF/com/google/android/update-binary.
+# 参见 --target_target_files.
+OPTIONS.target_target_files= None
+
+#*---------------------------------------------------------------------------*/
+
+def AddDirContentToZipFile(content_dir, output_zip, base_dir = ""):
+  """
+  将以 content_dir 为路径的目录的内容添加到 ZipFile 'output_zip' 中, 不包括 content_dir 本级.
+  base_dir :
+    content_dir 内容在 output_zip 中的根目录名称, 不包含 '/' 字符.
+    若指定为 None, 则直接使用原始路径.
+  """
+  filelist = []
+  if os.path.isfile(content_dir):
+    filelist.append(content_dir)
+  else :
+    for root, dirs, files in os.walk(content_dir):
+      for name in files:
+        filelist.append(os.path.join(root, name))
+
+  for tar in filelist:
+    if ( None != base_dir ) :
+      arcname = base_dir + "/" + tar[len(content_dir):]     # 替换原有的 首级目录名称. 
+    else :
+      arcname = tar
+    #print arcname
+    D(arcname);
+    output_zip.write(tar,arcname)
+
+
+def SignOutput(temp_zip_name, output_zip_name):
+  D("to get key pw first.");
+  key_passwords = common.GetKeyPasswords([OPTIONS.package_key])
+  pw = key_passwords[OPTIONS.package_key]
+
+  D("to sign file indeed.");
+  common.SignFile(temp_zip_name, output_zip_name, OPTIONS.package_key, pw,
+                  whole_file=True)
+
+
+#*---------------------------------------------------------------------------*/
+
+def main(argv):
+
+  def option_handler(o, a):
+    if o in ("-k", "--package_key"):
+      OPTIONS.package_key = a
+    elif o in ("-t", "--target_target_files"):
+      OPTIONS.target_target_files = a
+    else:
+      return False
+    return True
+
+  args = common.ParseOptions(argv, __doc__,     # args 中将返回 argv 中非 option 的 program arguments.
+                             extra_opts="k:t:",
+                             extra_long_opts=["package_key=",
+                                              "target_target_files=",
+                                              ],
+                             extra_option_handler=option_handler)
+
+  D("args : %s.", str(args) );
+  if len(args) != 2:    # 要求不是 flags(options) 的 arguments 的个数必须是 2, 即命令行调用说明中的 input_target_files 和 output_ota_package.
+    common.Usage(__doc__)
+    sys.exit(1)
+
+  content_dir = args[0]
+  output_ota_package = args[1]
+
+  # *-------------------------------------------------------*/
+
+  if ( OPTIONS.package_key is None ):
+    W("to use testkey temply.")
+    OPTIONS.package_key = "build/target/product/security/testkey"
+
+  I("unzipping input target_target_files...")
+  input_tmp, input_zip = common.UnzipTemp(OPTIONS.target_target_files)  # args[0] : input_target_files 的路径字串; 
+                                                                        # input_tmp : 解压操作的目标目录路径字串; input_zip : target_target_files 的 ZipFile 实例对象. 
+  D("to get info_dict from input_zip");
+  OPTIONS.info_dict = common.LoadInfoDict(input_zip)
+
+  temp_zip_file = tempfile.NamedTemporaryFile()
+  D("to create output_zip, temp_zip_file : %s", temp_zip_file.name)
+  output_zip = zipfile.ZipFile(temp_zip_file,
+                               "w",
+                               compression=zipfile.ZIP_DEFLATED)
+
+  script = edify_generator.EdifyGenerator(3, OPTIONS.info_dict)
+  # 获取 update 对 rksdk_ver 的要求. 
+  # 在 updater-script 中添加对应的 assertions. 
+
+  script.ShowProgress(0.5, 0)
+  script.ShowProgress(0.2, 30)
+  script.Mount("/radical_update")
+  # 向 updater-script 中添加将 zip 中 /radical_update 中的内容解压到 设备的 /radical_update
+  script.UnpackPackageDir("radical_update", "/radical_update")
+  script.Unmount("/radical_update")
+  D("to add content of content_dir to output_zip.")
+  AddDirContentToZipFile(content_dir, output_zip, "radical_update")
+
+  script.ClearMiscCommand()
+  D("to add file 'updater-script' and 'update-binary' to output_zip")
+  script.AddToZip(input_zip, output_zip)
+
+  D("all the content have been added, to close output_zip.")
+  output_zip.close()
+
+  D("to sign temp_zip_file, and output to output_ota_package.");
+  SignOutput(temp_zip_file.name, output_ota_package)
+
+  temp_zip_file.close()
+
+  common.Cleanup();
+
+  I("done.")
+
+#*---------------------------------------------------------------------------*/
+
+if __name__ == '__main__':
+  try:
+    common.CloseInheritedPipes()
+    main(sys.argv[1:])
+  except common.ExternalError, e:
+    print
+    print "   ERROR: %s" % (e,)
+    print
+    sys.exit(1)
+

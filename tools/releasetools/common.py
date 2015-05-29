@@ -1,3 +1,4 @@
+# coding=utf8
 # Copyright (C) 2008 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +35,10 @@ try:
 except ImportError:
   from sha import sha as sha1
 
+from custom_log import D
+from custom_log import I
+from custom_log import W
+
 # missing in Python 2.4 and before
 if not hasattr(os, "SEEK_SET"):
   os.SEEK_SET = 0
@@ -48,8 +53,10 @@ OPTIONS.public_key_suffix = ".x509.pem"
 OPTIONS.private_key_suffix = ".pk8"
 OPTIONS.verbose = False
 OPTIONS.tempfiles = []
+# 将存储设备定制操作模块的路径字串. RK32_SDK 中 device/rockchip/rksdk/, 模块是 device/rockchip/rksdk/releasetools.pyc.
 OPTIONS.device_specific = None
 OPTIONS.extras = {}
+# 将引用字典对象, 参见 LoadInfoDict().
 OPTIONS.info_dict = None
 
 
@@ -64,7 +71,8 @@ def Run(args, **kwargs):
   """Create and return a subprocess.Popen object, printing the command
   line on the terminal if -v was specified."""
   if OPTIONS.verbose:
-    print "  running: ", " ".join(args)
+    # print "  running: ", " ".join(args)
+    I("  running: %s", " ".join(args) )
   return subprocess.Popen(args, **kwargs)
 
 
@@ -87,6 +95,7 @@ def CloseInheritedPipes():
 def LoadInfoDict(zip):
   """Read and parse the META/misc_info.txt key/value pairs from the
   input target files and return a dict."""
+  # input_zip 中的 META/misc_info.txt 的内容, 在 make otapackage 过程中, 将 "tool_extensions" 这样的 key 和对应的 value (对应 make 变量的 value) 写入得到.
 
   d = {}
   try:
@@ -152,6 +161,7 @@ def LoadInfoDict(zip):
   makeint("boot_size")
   makeint("fstab_version")
 
+  D("to load recovery FS table(fstabi).")
   d["fstab"] = LoadRecoveryFSTab(zip, d["fstab_version"])
   d["build.prop"] = LoadBuildProp(zip)
   return d
@@ -289,6 +299,11 @@ def BuildBootableImage(sourcedir, fs_config_file, info_dict=None):
 
   cmd = ["mkbootimg", "--kernel", os.path.join(sourcedir, "kernel")]
 
+  fn = os.path.join(sourcedir, "resource.img")
+  if os.access(fn, os.F_OK):
+    cmd.append("--second")
+    cmd.append(os.path.join(sourcedir, "resource.img"))
+
   fn = os.path.join(sourcedir, "cmdline")
   if os.access(fn, os.F_OK):
     cmd.append("--cmdline")
@@ -315,7 +330,7 @@ def BuildBootableImage(sourcedir, fs_config_file, info_dict=None):
   p.communicate()
   assert p.returncode == 0, "mkbootimg of %s image failed" % (
       os.path.basename(sourcedir),)
-  
+
   sign_cmd = ["drmsigntool", img.name, "build/target/product/security/privateKey.bin"]
   p3 = Run(sign_cmd)
   p3.communicate()
@@ -345,7 +360,7 @@ def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
   else:
     print "building image from target_files %s..." % (tree_subdir,)
     fs_config = "META/" + tree_subdir.lower() + "_filesystem_config.txt"
-    return File(name, BuildBootableImage(os.path.join(unpack_dir, tree_subdir),
+    return File(name, BuildBootableImage(os.path.join(unpack_dir, tree_subdir),     # "File" : 本地定义的类型.
                                          os.path.join(unpack_dir, fs_config),
                                          info_dict))
 
@@ -360,7 +375,7 @@ def UnzipTemp(filename, pattern=None):
   main file), open for reading.
   """
 
-  tmp = tempfile.mkdtemp(prefix="targetfiles-")
+  tmp = tempfile.mkdtemp(prefix="targetfiles-")     # 返回的 tmp 值诸如 '/tmp/targetfiles-mJpYea'
   OPTIONS.tempfiles.append(tmp)
 
   def unzip_to_dir(filename, dirname):
@@ -575,7 +590,7 @@ def ParseOptions(argv,
   extra_option_handler."""
 
   try:
-    opts, args = getopt.getopt(
+    opts, args = getopt.getopt(                 # args 中将返回 argv 中非 option 的 program arguments.
         argv, "hvp:s:x:" + extra_opts,
         ["help", "verbose", "path=", "signapk_path=", "extra_signapk_args=",
          "java_path=", "public_key_suffix=", "private_key_suffix=",
@@ -760,6 +775,7 @@ class DeviceSpecificParams(object):
             f = b
           info = imp.find_module(f, [d])
         self.module = imp.load_module("device_specific", *info)
+        D("module = %s", self.module);
       except ImportError:
         print "unable to load device-specific module; assuming none"
 
